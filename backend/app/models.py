@@ -72,3 +72,53 @@ class MediaAsset(Base):
     content: Mapped["ContentItem"] = relationship(
         back_populates="media_assets",
     )
+
+
+class ScheduledPost(Base):
+    __tablename__ = "scheduled_posts"
+
+    id: Mapped[int] = mapped_column(
+        primary_key=True,
+        autoincrement=True,
+    )
+
+    content_id: Mapped[int] = mapped_column(
+        ForeignKey("content_items.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+
+    scheduled_at: Mapped[datetime] = mapped_column(
+        DateTime,
+        nullable=False,
+    )
+
+    status: Mapped[str] = mapped_column(
+        String(20),
+        nullable=False,
+        default="scheduled",
+    )
+
+    attempts: Mapped[int] = mapped_column(
+        default=0,
+        nullable=False,
+    )
+
+    published_at: Mapped[datetime | None] = mapped_column(
+        DateTime,
+        nullable=True,
+    )
+
+    error_message: Mapped[str | None] = mapped_column(
+        Text,
+        nullable=True,
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime,
+        default=datetime.utcnow,
+        nullable=False,
+    )
+
+    content: Mapped["ContentItem"] = relationship(
+        back_populates="scheduled_posts",
+    )
