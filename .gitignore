@@ -1,8 +1,82 @@
+# =========================
+# Environment / Secrets
+# =========================
+
 .env
-.venv/
+.env.*
+!.env.example
+
+
+# =========================
+# Python
+# =========================
+
 __pycache__/
-*.pyc
-.pytest_cache/
-.mypy_cache/
+*.py[cod]
+*$py.class
+
+*.so
+
+.Python
+
+.venv/
+venv/
+env/
+ENV/
+
+pip-wheel-metadata/
+build/
+dist/
+*.egg-info/
+
+
+# =========================
+# IDE / Editors
+# =========================
+
+.vscode/
+.idea/
+*.swp
+*.swo
+
+
+# =========================
+# OS
+# =========================
+
+.DS_Store
+Thumbs.db
+
+
+# =========================
+# Application generated files
+# =========================
+
 generated/*
-!.gitkeep
+!generated/.gitkeep
+
+
+# =========================
+# Testing / Coverage
+# =========================
+
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.mypy_cache/
+
+
+# =========================
+# Logs
+# =========================
+
+*.log
+logs/
+
+
+# =========================
+# Docker
+# =========================
+
+docker-compose.override.yml
