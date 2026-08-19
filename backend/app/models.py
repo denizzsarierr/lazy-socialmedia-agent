@@ -40,6 +40,11 @@ class ContentItem(Base):
         nullable=True,
     )
 
+    publish_logs: Mapped[list["PublishLog"]] = relationship(
+    back_populates="content",
+    cascade="all, delete-orphan",
+    )
+
 class MediaAsset(Base):
     __tablename__ = "media_assets"
 
@@ -121,4 +126,48 @@ class ScheduledPost(Base):
 
     content: Mapped["ContentItem"] = relationship(
         back_populates="scheduled_posts",
+    )
+
+class PublishLog(Base):
+    __tablename__ = "publish_logs"
+
+    id: Mapped[int] = mapped_column(
+        primary_key=True,
+        autoincrement=True,
+    )
+
+    content_id: Mapped[int] = mapped_column(
+        ForeignKey("content_items.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+
+    platform: Mapped[str] = mapped_column(
+        String(20),
+        nullable=False,
+        default="instagram",
+    )
+
+    platform_post_id: Mapped[str | None] = mapped_column(
+        String(255),
+        nullable=True,
+    )
+
+    status: Mapped[str] = mapped_column(
+        String(20),
+        nullable=False,
+    )
+
+    response: Mapped[str | None] = mapped_column(
+        Text,
+        nullable=True,
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime,
+        default=datetime.utcnow,
+        nullable=False,
+    )
+
+    content: Mapped["ContentItem"] = relationship(
+        back_populates="publish_logs",
     )
