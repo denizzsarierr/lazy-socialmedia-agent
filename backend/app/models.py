@@ -45,6 +45,16 @@ class ContentItem(Base):
     cascade="all, delete-orphan",
     )
 
+    scheduled_posts: Mapped[list["ScheduledPost"]] = relationship(
+    back_populates="content",
+    cascade="all, delete-orphan",
+    )
+
+    media_assets: Mapped[list["MediaAsset"]] = relationship(
+    back_populates="content",
+    cascade="all, delete-orphan",
+    )
+
 class MediaAsset(Base):
     __tablename__ = "media_assets"
 
