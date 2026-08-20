@@ -38,11 +38,36 @@ services:
       - postgres
       - redis
 
-    command: rq worker publish
+    command: rq worker publish --with-scheduler
 
     networks:
       - instagram-agent-network
-      
+  
+  scheduler:
+    build:
+      context: .
+      dockerfile: Dockerfile
+
+    container_name: instagram-agent-scheduler
+
+    restart: unless-stopped
+
+    env_file:
+      - .env
+
+    volumes:
+      - ./backend:/app
+      - ./generated:/app/generated
+
+    depends_on:
+      - postgres
+      - redis
+
+    command: python -c "from app.scheduler import scheduler_loop; scheduler_loop()"
+
+    networks:
+      - instagram-agent-network
+
   postgres:
     image: postgres:17
     container_name: instagram-agent-postgres

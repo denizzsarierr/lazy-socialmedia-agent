@@ -113,6 +113,12 @@ class ScheduledPost(Base):
         default="scheduled",
     )
 
+    job_id: Mapped[str | None] = mapped_column(
+        String(255),
+        nullable=True,
+    
+    )
+
     attempts: Mapped[int] = mapped_column(
         default=0,
         nullable=False,
@@ -137,6 +143,8 @@ class ScheduledPost(Base):
     content: Mapped["ContentItem"] = relationship(
         back_populates="scheduled_posts",
     )
+
+    
 
 class PublishLog(Base):
     __tablename__ = "publish_logs"
