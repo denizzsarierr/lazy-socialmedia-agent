@@ -78,6 +78,11 @@ class MediaAsset(Base):
         nullable=False,
     )
 
+    public_url: Mapped[str | None] = mapped_column(
+        String(1000),
+        nullable=True,
+    )
+
     created_at: Mapped[datetime] = mapped_column(
         DateTime,
         default=datetime.utcnow,
