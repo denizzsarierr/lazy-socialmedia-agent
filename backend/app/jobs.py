@@ -11,6 +11,7 @@ from app.models import (
 )
 from app.services.instagram import InstagramPublisher
 from app.services.media_storage import MediaStorage
+from app.services.content_generator import ContentGenerator
 
 MAX_ATTEMPTS = 3
 
@@ -179,6 +180,49 @@ def process_scheduled_post(scheduled_post_id: int) -> None:
             f"#{scheduled_post_id}: {exc}"
         )
 
+        raise
+
+    finally:
+        db.close()
+
+def generate_content_item() -> int:
+    db = SessionLocal()
+
+    try:
+        recent_topics = db.scalars(
+            select(ContentItem.topic)
+            .where(ContentItem.topic.is_not(None))
+            .order_by(ContentItem.created_at.desc())
+            .limit(20)
+        ).all()
+
+        generator = ContentGenerator()
+
+        generated = generator.generate_content(
+            recent_topics=list(recent_topics),
+        )
+
+        content = ContentItem(
+            content_type="post",
+            category=generated["category"],
+            topic=generated["topic"],
+            caption=generated["caption"],
+            status="draft",
+        )
+
+        db.add(content)
+        db.commit()
+        db.refresh(content)
+
+        print(
+            f"Generated ContentItem #{content.id}: "
+            f"{content.topic}"
+        )
+
+        return content.id
+
+    except Exception:
+        db.rollback()
         raise
 
     finally:

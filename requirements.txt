@@ -31,3 +31,4 @@ redis[hiredis]
 rq
 requests
 cloudinary
+openai
