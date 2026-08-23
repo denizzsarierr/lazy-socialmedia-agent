@@ -28,3 +28,19 @@ class MediaStorage:
             )
 
         return secure_url
+
+    def upload_video(self, file_path: str) -> str:
+        result = cloudinary.uploader.upload(
+            file_path,
+            resource_type="video",
+            folder="lazy-socialmedia-agent",
+        )
+
+        secure_url = result.get("secure_url")
+
+        if not secure_url:
+            raise RuntimeError(
+                "Cloudinary upload did not return a secure_url."
+            )
+
+        return secure_url

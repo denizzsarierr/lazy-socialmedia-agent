@@ -4,50 +4,24 @@ from app.services.video.character_config import ROBOT_ANCHOR
 def build_presenter_video_prompt(
     topic: str,
     visual_direction: str,
-) -> str:
-    character = ROBOT_ANCHOR
-
+    ) -> str:
     return f"""
-        Create a vertical short-form technology news video.
+        Toru, the humanoid AI presenter from the reference image, sits behind
+        the newsroom desk and looks naturally at the camera.
 
-        PRESENTER:
-        {character.appearance}
+        Use subtle natural motion: blinking, small head movements,
+        gentle hand gestures, and relaxed upper-body movement.
 
-        FACE:
-        {character.face}
+        Toru appears cheerful, warm, curious, and confident.
+        Preserve Toru's identity, face, navy suit, studio, lighting,
+        framing, and colors from the reference image.
 
-        BODY:
-        {character.body}
+        Topic: {topic}
 
-        PRESENTATION STYLE:
-        {character.personality}
-
-        STUDIO:
-        {character.studio}
-
-        CAMERA:
-        {character.camera}
-
-        LIGHTING:
-        {character.lighting}
-
-        VISUAL STYLE:
-        {character.visual_style}
-
-        CURRENT TOPIC:
-        {topic}
-
-        SCENE DIRECTION:
-        The presenter is seated behind the newsroom desk.
-        The presenter looks directly into the camera and makes subtle,
-        natural robotic gestures while presenting the topic.
-
-        The display behind the presenter should visually relate to:
+        Background display:
         {visual_direction}
 
-        Keep the presenter as the main subject.
-        Background visuals should support the topic without becoming distracting.
-
-        CONSISTENCY RULES:
-        {character.negative_rules}
+        Keep Toru as the main subject.
+        Use smooth, realistic motion.
+        No text, logos, extra people, or appearance changes.
         """.strip()

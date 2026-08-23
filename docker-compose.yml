@@ -69,6 +69,32 @@ services:
     networks:
       - instagram-agent-network
 
+  planner:
+    build:
+      context: .
+      dockerfile: Dockerfile
+
+    container_name: instagram-agent-planner
+
+    restart: unless-stopped
+
+    env_file:
+      - .env
+
+    volumes:
+      - ./backend:/app
+
+    depends_on:
+      - postgres
+
+    command: >
+      python -c
+      "from app.planner import planner_loop;
+      planner_loop()"
+
+    networks:
+      - instagram-agent-network
+      
   postgres:
     image: postgres:17
     container_name: instagram-agent-postgres
