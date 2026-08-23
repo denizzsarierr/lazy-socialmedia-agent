@@ -196,10 +196,38 @@ def generate_content_item() -> int:
             .limit(20)
         ).all()
 
+        recent_categories = db.scalars(
+            select(ContentItem.category)
+            .where(ContentItem.category.is_not(None))
+            .order_by(ContentItem.created_at.desc())
+            .limit(12)
+        ).all()
+
+        categories = [
+            "artificial_intelligence",
+            "technology",
+            "aviation",
+        ]
+
+        category_counts = {
+            category: recent_categories.count(category)
+            for category in categories
+        }
+
+        preferred_category = min(
+            category_counts,
+            key=category_counts.get,
+        )
+
+        print(
+            f"Preferred category: {preferred_category}"
+        )
+
         generator = ContentGenerator()
 
         generated = generator.generate_content(
             recent_topics=list(recent_topics),
+            preferred_category=preferred_category,
         )
 
         content = ContentItem(
@@ -216,7 +244,7 @@ def generate_content_item() -> int:
 
         print(
             f"Generated ContentItem #{content.id}: "
-            f"{content.topic}"
+            f"[{content.category}] {content.topic}"
         )
 
         return content.id

@@ -18,6 +18,7 @@ class ContentGenerator:
     def generate_content(
         self,
         recent_topics: list[str] | None = None,
+        preferred_category: str | None = None,
     ) -> dict:
         recent_topics = recent_topics or []
 
@@ -28,6 +29,17 @@ class ContentGenerator:
             )
         else:
             previous_topics = "No previous topics."
+
+        if preferred_category:
+            category_instruction = (
+                f"Use this category for the post: "
+                f"{preferred_category}. "
+            )
+        else:
+            category_instruction = (
+                "Choose exactly one category from: "
+                "artificial_intelligence, technology, aviation. "
+            )
 
         response = self.client.responses.create(
             model=self.model,
@@ -51,8 +63,8 @@ class ContentGenerator:
                     "role": "user",
                     "content": (
                         "Create one Instagram post concept. "
-                        "Choose exactly one category from: "
-                        "artificial_intelligence, technology, aviation. "
+
+                        f"{category_instruction}"
 
                         "Create a topic that is meaningfully different "
                         "from the previous topics listed below. "
