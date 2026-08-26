@@ -25,3 +25,44 @@ def build_presenter_video_prompt(
         Use smooth, realistic motion.
         No text, logos, extra people, or appearance changes.
         """.strip()
+
+def build_scene_video_prompt(
+    topic: str,
+    scene: dict,
+    ) -> str:
+    presenter_action = scene["presenter_action"]
+    background_action = scene["background_action"]
+    camera_action = scene["camera_action"]
+
+    prompt = f"""
+    Toru, the humanoid AI presenter from the reference image,
+    remains in the same technology newsroom.
+
+    Presenter:
+    {presenter_action}
+
+    Background:
+    {background_action}
+
+    Camera:
+    {camera_action}
+
+    Preserve Toru's identity, face, navy suit, studio, lighting,
+    framing style, and colors from the reference image.
+
+    Topic: {topic}
+
+    Use smooth, realistic motion.
+    Toru should move naturally like a charismatic technology presenter.
+    Keep gestures subtle and believable.
+
+    No readable text, logos, extra people, or appearance changes.
+    """.strip()
+
+    if len(prompt) > 1000:
+        raise ValueError(
+            f"Scene prompt is too long: "
+            f"{len(prompt)} characters."
+        )
+
+    return prompt
