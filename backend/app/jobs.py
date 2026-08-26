@@ -690,6 +690,7 @@ def generate_reel_videos(reel_id: int) -> list[str]:
         db.close()
 
 def build_reel_pipeline(content_id: int) -> str:
+
     db = SessionLocal()
 
     try:
@@ -855,6 +856,84 @@ def build_reel_pipeline(content_id: int) -> str:
         )
 
         return final_path
+
+    except Exception:
+        db.rollback()
+        raise
+
+    finally:
+        db.close()
+
+def upload_final_reel(
+    reel_id: int,
+    final_path: str,
+) -> int:
+    db = SessionLocal()
+
+    try:
+        reel = db.get(
+            ReelContent,
+            reel_id,
+        )
+
+        if reel is None:
+            raise ValueError(
+                f"ReelContent #{reel_id} not found."
+            )
+
+
+        existing_asset = db.scalar(
+            select(MediaAsset).where(
+                MediaAsset.content_id == reel.content_id,
+                MediaAsset.media_type == "reel",
+            )
+        )
+
+        if (
+            existing_asset is not None
+            and existing_asset.public_url
+        ):
+            print(
+                f"Reel MediaAsset #{existing_asset.id} "
+                "already exists. Skipping upload."
+            )
+
+            return existing_asset.id
+
+        storage = MediaStorage()
+
+        public_url = storage.upload_video(
+            final_path
+        )
+
+        if existing_asset is None:
+            asset = MediaAsset(
+                content_id=reel.content_id,
+                media_type="reel",
+                file_path=final_path,
+                public_url=public_url,
+            )
+
+            db.add(asset)
+
+        else:
+            asset = existing_asset
+            asset.file_path = final_path
+            asset.public_url = public_url
+
+        db.commit()
+        db.refresh(asset)
+
+        print(
+            f"Final Reel uploaded as "
+            f"MediaAsset #{asset.id}"
+        )
+
+        print(
+            f"Public URL: {asset.public_url}"
+        )
+
+        return asset.id
 
     except Exception:
         db.rollback()
