@@ -28,6 +28,17 @@ from app.services.video.downloader import download_video
 from app.services.video.frame_utils import extract_last_frame
 from app.services.video.runway import RunwayVideoGenerator
 
+from app.services.ass_subtitle_generator import generate_karaoke_ass
+from app.services.subtitle_alignment import SubtitleAligner
+from app.services.subtitle_chunker import (
+    chunk_words,
+    merge_short_chunks,
+)
+from app.services.video.composer import (
+    burn_subtitles,
+    compose_reel,
+)
+
 MAX_ATTEMPTS = 3
 
 
@@ -674,6 +685,180 @@ def generate_reel_videos(reel_id: int) -> list[str]:
         db.commit()
 
         return video_paths
+
+    finally:
+        db.close()
+
+def build_reel_pipeline(content_id: int) -> str:
+    db = SessionLocal()
+
+    try:
+        # 1. ReelContent oluştur / mevcut olanı kullan
+        reel = db.scalar(
+            select(ReelContent).where(
+                ReelContent.content_id == content_id
+            )
+        )
+
+        if reel is None:
+            db.close()
+            reel_id = generate_reel_content(content_id)
+            db = SessionLocal()
+            reel = db.get(ReelContent, reel_id)
+
+        if reel is None:
+            raise RuntimeError(
+                f"Could not create ReelContent for ContentItem #{content_id}."
+            )
+
+        reel_id = reel.id
+
+        print(
+            f"Building ReelContent #{reel_id} "
+            f"for ContentItem #{content_id}."
+        )
+
+        # 2. Audio
+        if not reel.audio_path or reel.audio_duration is None:
+            db.close()
+            generate_reel_audio(reel_id)
+            db = SessionLocal()
+            reel = db.get(ReelContent, reel_id)
+
+        # 3. Scene planları
+        existing_scenes = db.scalars(
+            select(ReelScene).where(
+                ReelScene.reel_id == reel_id
+            )
+        ).all()
+
+        if not existing_scenes:
+            db.close()
+            generate_reel_scenes(reel_id)
+            db = SessionLocal()
+
+        # 4. Runway videoları
+        db.close()
+
+        generate_reel_videos(reel_id)
+
+        db = SessionLocal()
+
+        reel = db.get(
+            ReelContent,
+            reel_id,
+        )
+
+        scenes = db.scalars(
+            select(ReelScene)
+            .where(
+                ReelScene.reel_id == reel_id
+            )
+            .order_by(
+                ReelScene.clip_number
+            )
+        ).all()
+
+        incomplete_scene = next(
+            (
+                scene
+                for scene in scenes
+                if (
+                    scene.status != "video_ready"
+                    or not scene.video_path
+                )
+            ),
+            None,
+        )
+
+        if incomplete_scene is not None:
+            raise RuntimeError(
+                f"ReelContent #{reel_id} has unfinished video clips."
+            )
+
+        clip_paths = [
+            scene.video_path
+            for scene in scenes
+        ]
+
+        reel_dir = (
+            f"/app/generated/reels/"
+            f"reel_{reel_id}"
+        )
+
+        # 5. Klipleri birleştir + Marin audio
+        raw_final_path = (
+            f"{reel_dir}/final_reel.mp4"
+        )
+
+        compose_reel(
+            clip_paths=clip_paths,
+            audio_path=reel.audio_path,
+            output_path=raw_final_path,
+        )
+
+        print(
+            f"Composed Reel: {raw_final_path}"
+        )
+
+        # 6. Word-level timestamp
+        aligner = SubtitleAligner()
+
+        words = aligner.align_words(
+            reel.audio_path
+        )
+
+        # 7. Subtitle chunks
+        chunks = chunk_words(
+            words,
+            max_words=5,
+            max_duration=2.5,
+            max_gap=0.45,
+        )
+
+        chunks = merge_short_chunks(
+            chunks,
+            min_words=2,
+        )
+
+        # 8. ASS karaoke
+        ass_path = (
+            f"{reel_dir}/subtitles.ass"
+        )
+
+        generate_karaoke_ass(
+            chunks,
+            ass_path,
+        )
+
+        # 9. Subtitle burn
+        final_path = (
+            f"{reel_dir}/final_reel_subtitled.mp4"
+        )
+
+        burn_subtitles(
+            video_path=raw_final_path,
+            ass_path=ass_path,
+            output_path=final_path,
+        )
+
+        reel.status = "ready"
+
+        db.commit()
+
+        print(
+            f"ReelContent #{reel_id} completed."
+        )
+
+        print(
+            f"Final video: {final_path}"
+        )
+
+        return final_path
+
+    except Exception:
+        db.rollback()
+        raise
 
     finally:
         db.close()
