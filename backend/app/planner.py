@@ -1,5 +1,11 @@
 import time
-from datetime import date, datetime, time as dt_time, timezone
+from datetime import (
+    date,
+    datetime,
+    time as dt_time,
+    timedelta,
+    timezone,
+)
 from zoneinfo import ZoneInfo
 
 from sqlalchemy import select
@@ -137,12 +143,29 @@ def planner_loop() -> None:
 
     while True:
         try:
-            plan_daily_posts()
+            now_local = datetime.now(
+                LOCAL_TIMEZONE
+            )
+
+            today = now_local.date()
+            tomorrow = (
+                today
+                + timedelta(days=1)
+            )
+
+            # Plan remaining slots for today.
+            plan_daily_posts(
+                target_date=today
+            )
+
+            # Pre-plan all slots for tomorrow.
+            plan_daily_posts(
+                target_date=tomorrow
+            )
+
         except Exception as exc:
             print(
                 f"Daily planner error: {exc}"
             )
 
-        # Check every 5 minutes.
-        # Duplicate protection prevents recreating posts.
         time.sleep(300)
