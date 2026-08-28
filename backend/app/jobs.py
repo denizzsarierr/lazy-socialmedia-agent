@@ -86,11 +86,15 @@ def process_scheduled_post(scheduled_post_id: int) -> None:
                 f"ContentItem #{scheduled_post.content_id} not found."
             )
 
-        media_assets = db.scalars(
-            select(MediaAsset).where(
-                MediaAsset.content_id == content.id
+        reel_asset = db.scalar(
+            select(MediaAsset)
+            .where(
+                MediaAsset.content_id == content.id,
+                MediaAsset.media_type == "reel",
+                MediaAsset.public_url.is_not(None),
             )
-        ).all()
+            .order_by(MediaAsset.id.desc())
+        )
 
         scheduled_post.status = "processing"
         scheduled_post.attempts += 1
@@ -102,37 +106,80 @@ def process_scheduled_post(scheduled_post_id: int) -> None:
             f"(attempt {scheduled_post.attempts}/{MAX_ATTEMPTS})"
         )
 
-        storage = MediaStorage()
-
-        media_urls = []
-
-        for media in media_assets:
-            if media.public_url:
-                media_urls.append(media.public_url)
-                continue
-
-            public_url = storage.upload_image(
-                media.file_path
+        if reel_asset is None:
+            error_message = (
+                f"Reel media for ContentItem "
+                f"#{content.id} is not ready."
             )
 
-            media.public_url = public_url
-            media_urls.append(public_url)
+            if scheduled_post.attempts < MAX_ATTEMPTS:
+                scheduled_post.status = "scheduled"
+                scheduled_post.job_id = None
+                scheduled_post.error_message = error_message
 
-        db.commit()
+                publish_log = PublishLog(
+                    content_id=content.id,
+                    platform="instagram",
+                    status="failed",
+                    response=error_message,
+                )
+
+                db.add(publish_log)
+                db.commit()
+
+                print(
+                    f"ScheduledPost #{scheduled_post.id} "
+                    "cannot be published yet. "
+                    f"{error_message} "
+                    f"Attempt "
+                    f"{scheduled_post.attempts}/{MAX_ATTEMPTS}."
+                )
+
+                return
+
+            scheduled_post.status = "failed"
+            scheduled_post.error_message = error_message
+
+            publish_log = PublishLog(
+                content_id=content.id,
+                platform="instagram",
+                status="failed",
+                response=error_message,
+            )
+
+            db.add(publish_log)
+            db.commit()
+
+            print(
+                f"ScheduledPost #{scheduled_post.id} "
+                f"failed permanently after "
+                f"{MAX_ATTEMPTS} attempts."
+            )
+
+            return
+
+        print(
+            f"Using Reel MediaAsset #{reel_asset.id} "
+            f"for ContentItem #{content.id}."
+        )
 
         publisher = InstagramPublisher()
 
-        result = publisher.publish_post(
+        result = publisher.publish_reel(
             caption=content.caption,
-            media_urls=media_urls,
+            video_url=reel_asset.public_url,
+            share_to_feed=True,
         )
 
         if result["success"]:
+            published_at = datetime.utcnow()
+
             scheduled_post.status = "published"
-            scheduled_post.published_at = datetime.utcnow()
+            scheduled_post.published_at = published_at
+            scheduled_post.error_message = None
 
             content.status = "published"
-            content.published_at = datetime.utcnow()
+            content.published_at = published_at
 
             publish_log = PublishLog(
                 content_id=content.id,
@@ -143,12 +190,11 @@ def process_scheduled_post(scheduled_post_id: int) -> None:
             )
 
             db.add(publish_log)
-
             db.commit()
 
             print(
                 f"ScheduledPost #{scheduled_post.id} "
-                "published successfully."
+                "published successfully as Reel."
             )
 
             return
@@ -168,13 +214,13 @@ def process_scheduled_post(scheduled_post_id: int) -> None:
             )
 
             db.add(publish_log)
-
             db.commit()
 
             print(
                 f"ScheduledPost #{scheduled_post.id} failed. "
                 f"Will retry. "
-                f"Attempt {scheduled_post.attempts}/{MAX_ATTEMPTS}."
+                f"Attempt "
+                f"{scheduled_post.attempts}/{MAX_ATTEMPTS}."
             )
 
         else:
@@ -189,7 +235,6 @@ def process_scheduled_post(scheduled_post_id: int) -> None:
             )
 
             db.add(publish_log)
-
             db.commit()
 
             print(
@@ -529,7 +574,6 @@ def generate_reel_videos(reel_id: int) -> list[str]:
         storage = MediaStorage()
 
         video_paths = []
-
         current_reference = anchor_url
 
         for scene in scenes:
@@ -546,9 +590,7 @@ def generate_reel_videos(reel_id: int) -> list[str]:
                     scene.video_path
                 )
 
-                # Important for continuity after a restart:
-                # if this scene already has a generated next-frame
-                # reference, use it for the following scene.
+                # Preserve continuity after worker restart.
                 if scene.end_frame_url:
                     current_reference = (
                         scene.end_frame_url
@@ -575,11 +617,54 @@ def generate_reel_videos(reel_id: int) -> list[str]:
 
                 db.commit()
 
-                video_url = generator.generate(
-                    reference_image_url=current_reference,
-                    prompt=scene.prompt,
-                    duration=5,
-                )
+                try:
+                    video_url = generator.generate(
+                        reference_image_url=current_reference,
+                        prompt=scene.prompt,
+                        duration=5,
+                    )
+
+                except Exception as generation_exc:
+                    error_text = str(
+                        generation_exc
+                    )
+
+                    is_bad_output = (
+                        "INTERNAL.BAD_OUTPUT.CODE01"
+                        in error_text
+                    )
+
+                    can_fallback = (
+                        is_bad_output
+                        and current_reference != anchor_url
+                    )
+
+                    if not can_fallback:
+                        raise
+
+                    print(
+                        f"Clip {scene.clip_number} received "
+                        "Runway BAD_OUTPUT from continuity frame."
+                    )
+
+                    print(
+                        f"Retrying clip {scene.clip_number} "
+                        "once with canonical Toru reference."
+                    )
+
+                    current_reference = anchor_url
+
+                    scene.start_frame_url = (
+                        anchor_url
+                    )
+
+                    db.commit()
+
+                    video_url = generator.generate(
+                        reference_image_url=anchor_url,
+                        prompt=scene.prompt,
+                        duration=5,
+                    )
 
                 reel_dir = (
                     f"/app/generated/reels/"
@@ -652,9 +737,9 @@ def generate_reel_videos(reel_id: int) -> list[str]:
                     f"failed: {exc}"
                 )
 
-                # We stop here intentionally.
-                # Generating the next scene without the
-                # previous final frame would break continuity.
+                # Stop intentionally.
+                # Continuing without the previous scene
+                # would break the intended continuity.
                 break
 
         remaining_scene = db.scalar(
@@ -941,3 +1026,49 @@ def upload_final_reel(
 
     finally:
         db.close()
+
+
+def prepare_reel_for_publish(content_id: int) -> int:
+    """
+    Build the complete Reel and upload the final video to Cloudinary.
+
+    Returns the MediaAsset id.
+    """
+    print(
+        f"Preparing Reel for ContentItem #{content_id}..."
+    )
+
+    final_path = build_reel_pipeline(content_id)
+
+    db = SessionLocal()
+
+    try:
+        reel = (
+            db.query(ReelContent)
+            .filter(ReelContent.content_id == content_id)
+            .order_by(ReelContent.id.desc())
+            .first()
+        )
+
+        if reel is None:
+            raise RuntimeError(
+                f"ReelContent for ContentItem "
+                f"#{content_id} could not be found."
+            )
+
+        reel_id = reel.id
+
+    finally:
+        db.close()
+
+    asset_id = upload_final_reel(
+        reel_id=reel_id,
+        final_path=final_path,
+    )
+
+    print(
+        f"Reel for ContentItem #{content_id} ready. "
+        f"MediaAsset #{asset_id}"
+    )
+
+    return asset_id
