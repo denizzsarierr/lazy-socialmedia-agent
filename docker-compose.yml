@@ -44,6 +44,31 @@ services:
     networks:
       - instagram-agent-network
   
+  reel-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+
+    container_name: instagram-agent-reel-worker
+
+    restart: unless-stopped
+
+    env_file:
+      - .env
+
+    volumes:
+      - ./backend:/app
+      - ./generated:/app/generated
+
+    depends_on:
+      - postgres
+      - redis
+
+    command: rq worker reel
+
+    networks:
+      - instagram-agent-network
+
   scheduler:
     build:
       context: .

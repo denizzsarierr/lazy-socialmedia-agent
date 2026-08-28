@@ -5,8 +5,12 @@ from zoneinfo import ZoneInfo
 from sqlalchemy import select
 
 from app.database import SessionLocal
-from app.jobs import generate_content_item
+from app.jobs import (
+    generate_content_item,
+    prepare_reel_for_publish,
+)
 from app.models import ContentItem, ScheduledPost
+from app.queue import reel_queue
 
 
 LOCAL_TIMEZONE = ZoneInfo("Europe/Warsaw")
@@ -52,8 +56,7 @@ def plan_daily_posts(
                 )
                 continue
 
-            # Our current DB columns are timezone-naive,
-            # so store UTC without tzinfo.
+            # Database currently stores timezone-naive UTC.
             scheduled_utc = (
                 scheduled_local
                 .astimezone(timezone.utc)
@@ -75,6 +78,7 @@ def plan_daily_posts(
                 )
                 continue
 
+            # Generate the ContentItem.
             content_id = generate_content_item()
 
             content = db.get(
@@ -105,6 +109,19 @@ def plan_daily_posts(
                 f"as ScheduledPost #{scheduled_post.id} "
                 f"for {scheduled_local:%Y-%m-%d %H:%M} "
                 f"{LOCAL_TIMEZONE.key}"
+            )
+
+            # Generate the complete Reel in the worker.
+            job = reel_queue.enqueue(
+                prepare_reel_for_publish,
+                content.id,
+                job_timeout=1800,
+            )
+
+            print(
+                f"Reel preparation queued for "
+                f"ContentItem #{content.id}. "
+                f"Job ID: {job.id}"
             )
 
     except Exception:

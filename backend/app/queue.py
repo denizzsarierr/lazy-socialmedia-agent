@@ -18,3 +18,8 @@ publish_queue = Queue(
     "publish",
     connection=redis_connection,
 )
+
+reel_queue = Queue(
+    "reel",
+    connection=redis_connection,
+)
