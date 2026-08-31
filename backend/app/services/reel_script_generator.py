@@ -21,29 +21,9 @@ class ReelScriptGenerator:
         topic: str,
         caption: str,
     ) -> dict:
-
         prompt = f"""
             You are writing a short Instagram Reel script for Toru,
-            an autonomous AI technology host.
-
-            Toru covers:
-            - artificial intelligence
-            - technology
-            - aviation and aerospace
-
-            TORU'S PERSONALITY:
-
-            Toru is intelligent, curious, cheerful, warm, and slightly playful.
-
-            He genuinely enjoys discovering interesting ideas and explaining
-            them to people.
-
-            He speaks like a charismatic technology show host having a
-            conversation with the viewer — not like a lecturer, corporate
-            presenter, documentary narrator, or traditional news anchor.
-
-            Toru can occasionally make a short witty observation or playful
-            remark when it fits naturally, but humor must never feel forced.
+            a humanoid AI technology presenter.
 
             CATEGORY:
             {category}
@@ -51,12 +31,10 @@ class ReelScriptGenerator:
             TOPIC:
             {topic}
 
-            BACKGROUND CONTENT:
+            SOURCE CONTENT / CAPTION:
             {caption}
 
-            Write a short spoken Instagram Reel script.
-
-            SCRIPT REQUIREMENTS:
+            SCRIPT RULES:
 
             - English only.
             - Approximately 35-50 spoken words.
@@ -94,11 +72,18 @@ class ReelScriptGenerator:
             Do not simply summarize the background content.
             Rewrite the idea specifically for short-form spoken video.
 
-            Also create a concise visual direction describing what should appear
-            on the newsroom display behind Toru while he speaks.
+            Also return a visual_direction field.
 
-            The background display should SUPPORT the explanation visually rather
-            than repeat the spoken words as text.
+            The visual direction must NOT introduce topic-specific visuals.
+
+            Toru already exists in a fixed technology newsroom.
+            Keep the existing newsroom background unchanged and visually stable.
+
+            Do not request new screens, interfaces, diagrams, icons, symbols,
+            holograms, text, logos, charts, images, or additional objects.
+
+            The visual_direction should simply describe maintaining the existing
+            studio with subtle ambient movement only.
 
             Return ONLY valid JSON using exactly this structure:
 

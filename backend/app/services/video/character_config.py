@@ -54,9 +54,10 @@ ROBOT_ANCHOR = CharacterConfig(
 
     studio=(
         "Dark premium technology newsroom. "
-        "Minimal desk, large high-resolution display behind the presenter, "
-        "subtle aviation and AI interface elements, "
-        "graphite surfaces with restrained cyan lighting."
+        "Minimal desk and a clean, restrained studio background. "
+        "Graphite surfaces with subtle cyan ambient lighting. "
+        "The studio should remain visually stable and consistent "
+        "throughout the entire video."
     ),
 
     camera=(
@@ -80,12 +81,14 @@ ROBOT_ANCHOR = CharacterConfig(
 
     negative_rules=(
         "Do not change the robot's face design, eye color, "
-        "body proportions, primary colors, or studio identity. "
+        "body proportions, primary colors, clothing, or studio identity. "
+        "Do not add new objects to the scene. "
+        "Do not add screens, interfaces, diagrams, icons, symbols, "
+        "holograms, topic-specific graphics, logos, or readable text. "
+        "Keep the existing background visually stable. "
         "No cyberpunk neon overload. "
         "No cartoon style. "
         "No realistic human skin. "
-        "No random accessories. "
-        "No logos unless explicitly requested. "
-        "No text rendered inside the generated video."
+        "No random accessories."
     ),
 )

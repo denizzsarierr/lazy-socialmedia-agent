@@ -2,62 +2,73 @@ from app.services.video.character_config import ROBOT_ANCHOR
 
 
 def build_presenter_video_prompt(
-    topic: str,
-    visual_direction: str,
+        topic: str,
+        visual_direction: str,
     ) -> str:
     return f"""
-        Toru, the humanoid AI presenter from the reference image, sits behind
-        the newsroom desk and looks naturally at the camera.
+        Toru, the humanoid AI presenter from the reference image,
+        remains in the exact same technology newsroom.
 
-        Use subtle natural motion: blinking, small head movements,
-        gentle hand gestures, and relaxed upper-body movement.
+        Toru stays seated behind the desk and looks naturally toward
+        the camera.
 
-        Toru appears cheerful, warm, curious, and confident.
+        Use only subtle realistic motion:
+        small head movements, natural blinking, slight upper-body
+        movement, and one gentle presenter hand gesture.
+
+        Keep the camera almost static with only a very slow,
+        subtle cinematic movement.
+
+        Keep the existing background unchanged and nearly static.
+
         Preserve Toru's identity, face, navy suit, studio, lighting,
-        framing, and colors from the reference image.
+        composition, camera perspective, and colors.
 
         Topic: {topic}
 
-        Background display:
-        {visual_direction}
+        Do not add or change objects.
+        Do not add screens, interfaces, diagrams, icons, symbols,
+        text, logos, holograms, graphics, or extra people.
 
-        Keep Toru as the main subject.
-        Use smooth, realistic motion.
-        No text, logos, extra people, or appearance changes.
+        Use subtle natural motion only.
         """.strip()
 
+
 def build_scene_video_prompt(
-    topic: str,
-    scene: dict,
+        topic: str,
+        scene: dict,
     ) -> str:
+
     presenter_action = scene["presenter_action"]
-    background_action = scene["background_action"]
     camera_action = scene["camera_action"]
 
     prompt = f"""
-    Toru, the humanoid AI presenter from the reference image,
-    remains in the same technology newsroom.
+        Toru continues naturally from the reference frame in the
+        same technology newsroom.
 
-    Presenter:
-    {presenter_action}
+        Presenter:
+        {presenter_action}
 
-    Background:
-    {background_action}
+        Camera:
+        {camera_action}
 
-    Camera:
-    {camera_action}
+        Keep the existing background unchanged and nearly static.
 
-    Preserve Toru's identity, face, navy suit, studio, lighting,
-    framing style, and colors from the reference image.
+        Preserve Toru's identity, face, navy suit, studio, lighting,
+        composition, camera perspective, and colors from the
+        reference frame.
 
-    Topic: {topic}
+        Topic: {topic}
 
-    Use smooth, realistic motion.
-    Toru should move naturally like a charismatic technology presenter.
-    Keep gestures subtle and believable.
+        Use only subtle realistic motion.
+        Keep gestures small and natural.
+        Maintain continuity with the reference frame.
 
-    No readable text, logos, extra people, or appearance changes.
-    """.strip()
+        Do not add or change objects.
+        Do not add screens, interfaces, diagrams, icons, symbols,
+        text, logos, holograms, graphics, or extra people.
+        Do not reset the camera or Toru's pose.
+        """.strip()
 
     if len(prompt) > 1000:
         raise ValueError(

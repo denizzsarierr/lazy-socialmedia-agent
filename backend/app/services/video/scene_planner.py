@@ -24,74 +24,117 @@ class ScenePlanner:
     ) -> list[dict]:
 
         prompt = f"""
-You are planning video scenes for Toru, a humanoid AI
-technology presenter.
+            You are planning subtle continuous video scenes for Toru,
+            a humanoid AI technology presenter.
 
-Toru is seated in a modern technology newsroom and presents
-short Instagram Reels about AI, technology, aviation,
-and aerospace.
+            Toru is seated in a modern technology newsroom and presents
+            short Instagram Reels about AI, technology, aviation,
+            and aerospace.
 
-TOPIC:
-{topic}
+            TOPIC:
+            {topic}
 
-FULL SPOKEN SCRIPT:
-{script}
+            FULL SPOKEN SCRIPT:
+            {script}
 
-GENERAL BACKGROUND VISUAL:
-{visual_direction}
+            NUMBER OF VIDEO CLIPS:
+            {clip_count}
 
-NUMBER OF VIDEO CLIPS:
-{clip_count}
+            Create exactly {clip_count} sequential scenes.
 
-Create exactly {clip_count} sequential scenes.
+            IMPORTANT STYLE:
 
-Each scene will later become an approximately 5-second
-image-to-video generation.
+            The newsroom already exists in the reference image.
+            Do NOT visually explain the topic using the background.
 
-SCENE RULES:
+            The goal is not dramatic animation.
+            The goal is to make Toru look naturally alive while
+            preserving strong visual continuity.
 
-- Toru must remain the main presenter.
-- Keep the same newsroom environment.
-- Keep camera changes subtle.
-- Toru should use natural presenter gestures.
-- Do not make Toru perform exaggerated movements.
-- Do not introduce extra people.
-- Do not add readable text or logos.
-- Avoid repeating exactly the same movement in consecutive scenes.
-- Background visuals should help explain the topic.
-- Scenes must feel like parts of one continuous technology show.
-- Keep directions concise because they will be used in video prompts.
+            PRESENTER RULES:
 
-Use this general progression when appropriate:
+            - Toru remains seated.
+            - Use only small, natural presenter movements.
+            - Small hand gestures are allowed.
+            - Slight head turns or nods are allowed.
+            - Slight upper-body movement is allowed.
+            - Avoid large arm movements.
+            - Avoid crossing hands or complicated hand interactions.
+            - Avoid sudden pose changes.
+            - Avoid exaggerated facial expressions.
+            - Movement should continue naturally from the previous clip.
 
-1. Hook:
-   Toru engages the viewer.
+            CAMERA RULES:
 
-2. Explanation:
-   Toru naturally explains the concept.
+            - Camera movement must be extremely subtle.
+            - Prefer a very slow push-in, tiny horizontal drift,
+            or almost static camera.
+            - Never reset the camera angle.
+            - Never make dramatic zooms.
+            - Never orbit around Toru.
+            - Never change to another shot or viewpoint.
 
-3. Visual insight:
-   Background visualization becomes more useful.
+            BACKGROUND RULES:
 
-4. Conclusion:
-   Toru returns focus toward the viewer with a warm,
-   confident finish.
+            - Keep the existing newsroom unchanged.
+            - Background should remain almost static.
+            - Do not introduce new objects.
+            - Do not introduce screens.
+            - Do not introduce UI.
+            - Do not introduce diagrams.
+            - Do not introduce icons or symbols.
+            - Do not introduce text or logos.
+            - Do not introduce holograms.
+            - Do not introduce topic-specific graphics.
+            - Do not introduce extra people.
 
-Adapt this progression if the number of clips is different.
+            CONTINUITY:
 
-Return ONLY valid JSON with exactly this structure:
+            Every clip begins from the final frame of the previous clip.
 
-{{
-    "scenes": [
-        {{
-            "clip_number": 1,
-            "presenter_action": "...",
-            "background_action": "...",
-            "camera_action": "..."
-        }}
-    ]
-}}
-"""
+            Therefore movements must be compatible with the pose and
+            camera position already present in the reference frame.
+
+            Avoid describing a specific starting pose that could conflict
+            with the reference image.
+
+            Use different but very subtle presenter movements between
+            clips.
+
+            Example progression:
+
+            Clip 1:
+            small open-hand presenter gesture,
+            very slow camera push-in.
+
+            Clip 2:
+            small gesture with the other hand,
+            tiny horizontal camera drift.
+
+            Clip 3:
+            subtle head nod and relaxed hand movement,
+            camera nearly static.
+
+            Clip 4:
+            small concluding gesture and natural eye contact,
+            very slow subtle push-in.
+
+            Return ONLY valid JSON with exactly this structure:
+
+            {{
+                "scenes": [
+                    {{
+                        "clip_number": 1,
+                        "presenter_action": "...",
+                        "background_action": "...",
+                        "camera_action": "..."
+                    }}
+                ]
+            }}
+
+            For background_action always describe keeping the existing
+            background unchanged with only minimal ambient movement.
+            """
 
         response = self.client.responses.create(
             model=self.model,
