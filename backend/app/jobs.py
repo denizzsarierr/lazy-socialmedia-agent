@@ -86,6 +86,8 @@ def process_scheduled_post(scheduled_post_id: int) -> None:
                 f"ContentItem #{scheduled_post.content_id} not found."
             )
 
+        # First check whether the Reel is actually ready.
+        # Missing media is NOT a publishing attempt.
         reel_asset = db.scalar(
             select(MediaAsset)
             .where(
@@ -96,6 +98,34 @@ def process_scheduled_post(scheduled_post_id: int) -> None:
             .order_by(MediaAsset.id.desc())
         )
 
+        if reel_asset is None:
+            error_message = (
+                f"Reel media for ContentItem "
+                f"#{content.id} is not ready."
+            )
+
+            scheduled_post.status = "scheduled"
+            scheduled_post.job_id = None
+            scheduled_post.error_message = error_message
+
+            db.commit()
+
+            print(
+                f"ScheduledPost #{scheduled_post.id} "
+                "is waiting for Reel media. "
+                f"Attempts remain "
+                f"{scheduled_post.attempts}/{MAX_ATTEMPTS}."
+            )
+
+            return
+
+        print(
+            f"Using Reel MediaAsset #{reel_asset.id} "
+            f"for ContentItem #{content.id}."
+        )
+
+        # From this point onward we are making a real
+        # Instagram publishing attempt.
         scheduled_post.status = "processing"
         scheduled_post.attempts += 1
 
@@ -104,63 +134,6 @@ def process_scheduled_post(scheduled_post_id: int) -> None:
         print(
             f"Processing ScheduledPost #{scheduled_post.id} "
             f"(attempt {scheduled_post.attempts}/{MAX_ATTEMPTS})"
-        )
-
-        if reel_asset is None:
-            error_message = (
-                f"Reel media for ContentItem "
-                f"#{content.id} is not ready."
-            )
-
-            if scheduled_post.attempts < MAX_ATTEMPTS:
-                scheduled_post.status = "scheduled"
-                scheduled_post.job_id = None
-                scheduled_post.error_message = error_message
-
-                publish_log = PublishLog(
-                    content_id=content.id,
-                    platform="instagram",
-                    status="failed",
-                    response=error_message,
-                )
-
-                db.add(publish_log)
-                db.commit()
-
-                print(
-                    f"ScheduledPost #{scheduled_post.id} "
-                    "cannot be published yet. "
-                    f"{error_message} "
-                    f"Attempt "
-                    f"{scheduled_post.attempts}/{MAX_ATTEMPTS}."
-                )
-
-                return
-
-            scheduled_post.status = "failed"
-            scheduled_post.error_message = error_message
-
-            publish_log = PublishLog(
-                content_id=content.id,
-                platform="instagram",
-                status="failed",
-                response=error_message,
-            )
-
-            db.add(publish_log)
-            db.commit()
-
-            print(
-                f"ScheduledPost #{scheduled_post.id} "
-                f"failed permanently after "
-                f"{MAX_ATTEMPTS} attempts."
-            )
-
-            return
-
-        print(
-            f"Using Reel MediaAsset #{reel_asset.id} "
-            f"for ContentItem #{content.id}."
         )
 
         publisher = InstagramPublisher()
@@ -201,24 +174,25 @@ def process_scheduled_post(scheduled_post_id: int) -> None:
 
         error_message = result["response"]
 
+        publish_log = PublishLog(
+            content_id=content.id,
+            platform="instagram",
+            status="failed",
+            response=error_message,
+        )
+
+        db.add(publish_log)
+
         if scheduled_post.attempts < MAX_ATTEMPTS:
             scheduled_post.status = "scheduled"
             scheduled_post.job_id = None
             scheduled_post.error_message = error_message
 
-            publish_log = PublishLog(
-                content_id=content.id,
-                platform="instagram",
-                status="failed",
-                response=error_message,
-            )
-
-            db.add(publish_log)
             db.commit()
 
             print(
                 f"ScheduledPost #{scheduled_post.id} failed. "
-                f"Will retry. "
+                "Will retry. "
                 f"Attempt "
                 f"{scheduled_post.attempts}/{MAX_ATTEMPTS}."
             )
@@ -227,14 +201,6 @@ def process_scheduled_post(scheduled_post_id: int) -> None:
             scheduled_post.status = "failed"
             scheduled_post.error_message = error_message
 
-            publish_log = PublishLog(
-                content_id=content.id,
-                platform="instagram",
-                status="failed",
-                response=error_message,
-            )
-
-            db.add(publish_log)
             db.commit()
 
             print(
