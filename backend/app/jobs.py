@@ -1005,7 +1005,7 @@ def build_reel_pipeline(content_id: int) -> str:
 def upload_final_reel(
     reel_id: int,
     final_path: str,
-) -> int:
+    ) -> int:
     db = SessionLocal()
 
     try:

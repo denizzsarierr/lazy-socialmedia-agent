@@ -4,7 +4,7 @@ from datetime import datetime
 from sqlalchemy import select
 
 from app.database import SessionLocal
-from app.models import ScheduledPost
+from app.models import ScheduledPost, MediaAsset
 from app.queue import publish_queue
 
 
@@ -23,9 +23,23 @@ def schedule_due_posts() -> None:
         ).all()
 
         for post in posts:
-            print(
-                f"Scheduling ScheduledPost #{post.id}"
+            reel_asset = db.scalar(
+                select(MediaAsset)
+                .where(
+                    MediaAsset.content_id == post.content_id,
+                    MediaAsset.media_type == "reel",
+                    MediaAsset.public_url.is_not(None),
+                )
+                .order_by(MediaAsset.id.desc())
             )
+
+            if reel_asset is None:
+                print(
+                    f"ScheduledPost #{post.id} is due "
+                    "but Reel media is not ready yet. "
+                    "Skipping for now."
+                )
+                continue
 
             job = publish_queue.enqueue(
                 "app.jobs.process_scheduled_post",
@@ -37,8 +51,8 @@ def schedule_due_posts() -> None:
             db.commit()
 
             print(
-                f"ScheduledPost #{post.id} "
-                f"queued as job {job.id}"
+                f"ScheduledPost #{post.id} queued "
+                f"as job {job.id}."
             )
 
     finally:
