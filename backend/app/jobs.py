@@ -24,8 +24,8 @@ from app.services.video.clip_planner import plan_video_clips
 from app.services.video.scene_planner import ScenePlanner
 from app.services.video.prompt_builder import build_scene_video_prompt
 
-from app.services.video.downloader import download_video
-from app.services.video.frame_utils import extract_last_frame, extract_frame_before_end
+from app.services.video.downloader import download_video, download_image
+from app.services.video.frame_utils import extract_last_frame, extract_frame_before_end, create_static_motion_clip
 from app.services.video.runway import RunwayVideoGenerator
 
 from app.services.ass_subtitle_generator import generate_karaoke_ass
@@ -574,15 +574,113 @@ def generate_reel_videos(reel_id: int) -> list[str]:
         storage = MediaStorage()
 
         video_paths = []
-
-        # Clip 1 canonical Toru reference ile başlar.
-        # Sonraki clip'lerde bir önceki clip'in end_frame_url
-        # değeri kullanılacak.
         current_reference = anchor_url
+        previous_video_path = None
+
+        reel_dir = (
+            f"/app/generated/reels/"
+            f"reel_{reel.id}"
+        )
+
+        def is_bad_output_error(
+            exc: Exception,
+        ) -> bool:
+            return (
+                "INTERNAL.BAD_OUTPUT.CODE01"
+                in str(exc)
+            )
+
+        def generate_with_retry(
+            scene: ReelScene,
+            reference_url: str,
+        ) -> str | None:
+            try:
+                return generator.generate(
+                    reference_image_url=reference_url,
+                    prompt=scene.prompt,
+                    duration=5,
+                )
+
+            except Exception as first_exc:
+                if not is_bad_output_error(first_exc):
+                    raise
+
+                print(
+                    f"Clip {scene.clip_number} received "
+                    "Runway BAD_OUTPUT."
+                )
+
+                print(
+                    f"Retrying Clip {scene.clip_number} "
+                    "once with the same reference frame."
+                )
+
+            try:
+                return generator.generate(
+                    reference_image_url=reference_url,
+                    prompt=scene.prompt,
+                    duration=5,
+                )
+
+            except Exception as second_exc:
+                if not is_bad_output_error(second_exc):
+                    raise
+
+                print(
+                    f"Clip {scene.clip_number} received "
+                    "BAD_OUTPUT again."
+                )
+
+                return None
+
+        def create_local_fallback(
+            scene: ReelScene,
+            reference_url: str,
+            previous_clip_path: str | None,
+        ) -> str:
+            fallback_image_path = (
+                f"{reel_dir}/frames/"
+                f"clip_{scene.clip_number:02d}"
+                "_fallback_source.jpg"
+            )
+
+            fallback_video_path = (
+                f"{reel_dir}/clips/"
+                f"clip_{scene.clip_number:02d}.mp4"
+            )
+
+            if previous_clip_path:
+                # Clip 2+:
+                # Use the actual final frame of the
+                # previous local video.
+                extract_last_frame(
+                    previous_clip_path,
+                    fallback_image_path,
+                )
+
+            else:
+                # Clip 1:
+                # Download the canonical Toru anchor.
+                download_image(
+                    reference_url,
+                    fallback_image_path,
+                )
+
+            print(
+                f"Creating local minimal-motion fallback "
+                f"for Clip {scene.clip_number}..."
+            )
+
+            create_static_motion_clip(
+                image_path=fallback_image_path,
+                output_path=fallback_video_path,
+                duration=5,
+            )
+
+            return fallback_video_path
 
         for scene in scenes:
 
-            # Daha önce başarıyla üretilen clip'lere dokunma.
             if (
                 scene.status == "video_ready"
                 and scene.video_path
@@ -596,8 +694,10 @@ def generate_reel_videos(reel_id: int) -> list[str]:
                     scene.video_path
                 )
 
-                # Bir sonraki clip bu clip'in gerçek
-                # son karesinden devam edecek.
+                previous_video_path = (
+                    scene.video_path
+                )
+
                 if scene.end_frame_url:
                     current_reference = (
                         scene.end_frame_url
@@ -622,27 +722,15 @@ def generate_reel_videos(reel_id: int) -> list[str]:
             )
 
             try:
-                # Recovery frame kullanmıyoruz.
-                # Scene hangi reference ile gerçekten
-                # üretildiyse DB'ye onu kaydediyoruz.
                 scene.status = "generating"
                 scene.start_frame_url = (
                     current_reference
                 )
                 db.commit()
 
-                # TEK RUNWAY DENEMESİ
-                video_url = generator.generate(
-                    reference_image_url=(
-                        current_reference
-                    ),
-                    prompt=scene.prompt,
-                    duration=5,
-                )
-
-                reel_dir = (
-                    f"/app/generated/reels/"
-                    f"reel_{reel.id}"
+                video_url = generate_with_retry(
+                    scene=scene,
+                    reference_url=current_reference,
                 )
 
                 video_path = (
@@ -650,10 +738,31 @@ def generate_reel_videos(reel_id: int) -> list[str]:
                     f"clip_{scene.clip_number:02d}.mp4"
                 )
 
-                download_video(
-                    video_url,
-                    video_path,
-                )
+                if video_url is not None:
+                    download_video(
+                        video_url,
+                        video_path,
+                    )
+
+                    print(
+                        f"Clip {scene.clip_number} "
+                        "generated by Runway."
+                    )
+
+                else:
+                    # Runway gave CODE01 twice.
+                    # Keep continuity and finish the
+                    # scene locally at zero Runway cost.
+                    video_path = create_local_fallback(
+                        scene=scene,
+                        reference_url=current_reference,
+                        previous_clip_path=previous_video_path,
+                    )
+
+                    print(
+                        f"Clip {scene.clip_number} "
+                        "completed using local fallback."
+                    )
 
                 last_frame_path = (
                     f"{reel_dir}/frames/"
@@ -684,8 +793,10 @@ def generate_reel_videos(reel_id: int) -> list[str]:
                     video_path
                 )
 
-                # Sonraki clip artık bu clip'in
-                # gerçek son karesinden devam eder.
+                previous_video_path = (
+                    video_path
+                )
+
                 current_reference = (
                     last_frame_url
                 )
@@ -716,16 +827,13 @@ def generate_reel_videos(reel_id: int) -> list[str]:
                     f"failed: {exc}"
                 )
 
-                # Bir clip başarısız olursa Reel'i
-                # burada durduruyoruz.
                 break
 
         remaining_scene = db.scalar(
             select(ReelScene)
             .where(
                 ReelScene.reel_id == reel_id,
-                ReelScene.status
-                != "video_ready",
+                ReelScene.status != "video_ready",
             )
             .limit(1)
         )
