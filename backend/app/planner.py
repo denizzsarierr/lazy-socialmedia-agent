@@ -7,6 +7,8 @@ from datetime import (
     timezone,
 )
 from zoneinfo import ZoneInfo
+from rq.job import Job
+from rq.exceptions import NoSuchJobError
 
 from sqlalchemy import select
 
@@ -15,7 +17,7 @@ from app.jobs import (
     generate_content_item,
     prepare_reel_for_publish,
 )
-from app.models import ContentItem, ScheduledPost
+from app.models import ContentItem, ScheduledPost, MediaAsset
 from app.queue import reel_queue
 
 
@@ -124,6 +126,9 @@ def plan_daily_posts(
                 job_timeout=1800,
             )
 
+            scheduled_post.reel_job_id = job.id
+            db.commit()
+
             print(
                 f"Reel preparation queued for "
                 f"ContentItem #{content.id}. "
@@ -137,6 +142,92 @@ def plan_daily_posts(
     finally:
         db.close()
 
+def recover_incomplete_reels() -> None:
+    db = SessionLocal()
+
+    try:
+
+        now_utc = datetime.utcnow()
+        posts = db.scalars(
+            select(ScheduledPost).where(
+                ScheduledPost.status == "scheduled",
+                ScheduledPost.scheduled_at > now_utc,
+            )
+        ).all()
+
+        for post in posts:
+            reel_asset = db.scalar(
+                select(MediaAsset)
+                .where(
+                    MediaAsset.content_id == post.content_id,
+                    MediaAsset.media_type == "reel",
+                    MediaAsset.public_url.is_not(None),
+                )
+                .order_by(MediaAsset.id.desc())
+            )
+
+            # Reel is already completely ready.
+            if reel_asset is not None:
+                continue
+
+            active_job = False
+
+            if post.reel_job_id:
+                try:
+                    job = Job.fetch(
+                        post.reel_job_id,
+                        connection=reel_queue.connection,
+                    )
+
+                    status = job.get_status(
+                        refresh=True
+                    )
+
+                    if status in {
+                        "queued",
+                        "started",
+                        "deferred",
+                        "scheduled",
+                    }:
+                        active_job = True
+
+                except NoSuchJobError:
+                    active_job = False
+
+            if active_job:
+                print(
+                    f"Reel preparation for "
+                    f"ContentItem #{post.content_id} "
+                    "is already active."
+                )
+                continue
+
+            print(
+                f"Recovering Reel preparation for "
+                f"ContentItem #{post.content_id}..."
+            )
+
+            job = reel_queue.enqueue(
+                prepare_reel_for_publish,
+                post.content_id,
+                job_timeout=1800,
+            )
+
+            post.reel_job_id = job.id
+            db.commit()
+
+            print(
+                f"Recovery queued for ContentItem "
+                f"#{post.content_id}. "
+                f"Job ID: {job.id}"
+            )
+
+    except Exception:
+        db.rollback()
+        raise
+
+    finally:
+        db.close()
 
 def planner_loop() -> None:
     print("Daily content planner started.")
@@ -162,6 +253,8 @@ def planner_loop() -> None:
             plan_daily_posts(
                 target_date=tomorrow
             )
+
+            recover_incomplete_reels()
 
         except Exception as exc:
             print(

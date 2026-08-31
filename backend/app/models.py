@@ -164,6 +164,10 @@ class ScheduledPost(Base):
         back_populates="scheduled_posts",
     )
 
+    reel_job_id: Mapped[str | None] = mapped_column(
+        String(100),
+        nullable=True,
+    )
     
 
 class PublishLog(Base):
