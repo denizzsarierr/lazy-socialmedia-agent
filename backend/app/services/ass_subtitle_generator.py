@@ -28,7 +28,7 @@ def generate_karaoke_ass(
 ScriptType: v4.00+
 PlayResX: 720
 PlayResY: 1280
-WrapStyle: 2
+WrapStyle: 0
 ScaledBorderAndShadow: yes
 
 [V4+ Styles]
