@@ -11,7 +11,6 @@ REDIS_URL = os.getenv(
 
 redis_connection = Redis.from_url(
     REDIS_URL,
-    decode_responses=True,
 )
 
 publish_queue = Queue(
